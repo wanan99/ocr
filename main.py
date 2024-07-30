@@ -44,8 +44,12 @@ def fetch_image_from_url(url: str, headers: Optional[Dict[str, str]] = None, par
     try:
         response = requests.get(url, headers=headers, params=params)
         response.raise_for_status()  # 检查 HTTP 错误
-        cookies = '; '.join([f'{key}={value}' for key, value in response.cookies.items()])  # 将 Cookie 转换为文本字符串
-        return {'image': response.content, 'cookies': cookies}
+        cookies = response.cookies.get_dict()  # 获取响应中的 Cookie
+        
+        # 格式化 cookies 为字符串
+        cookies_str = '; '.join(f'{key}={value}' for key, value in cookies.items())
+        
+        return {'image': response.content, 'cookies': cookies_str}
     except Exception as e:
         raise ValueError(f"无法从 URL 获取图像: {str(e)}")
 
