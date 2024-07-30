@@ -57,7 +57,7 @@ def fetch_image_from_url(url: str) -> bytes:
     except Exception as e:
         raise ValueError("无法从 URL 获取图像")
 
-@app.route('/ocr', methods=['POST'])
+@app.route('/', methods=['POST'])
 def ocr():
     data = request.form.get('data', '')
     file = request.files.get('file', None)
