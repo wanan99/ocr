@@ -4,7 +4,7 @@ import binascii
 import requests
 from flask import Flask, request, jsonify
 from werkzeug.datastructures import FileStorage
-from typing import Union
+from typing import Union, Dict, Optional
 
 app = Flask(__name__)
 app.config.update(DEBUG=False)
@@ -32,16 +32,7 @@ def decode_image(image: Union[FileStorage, str, None]) -> bytes:
             if image.startswith(('data:image/', 'data:application/')):
                 # 移除 MIME 类型前缀
                 image = image.split(',')[1]
-            else:
-                # 自动判断图像格式
-                for prefix in ['data:image/png;base64,', 'data:image/jpeg;base64,', 'data:image/gif;base64,']:
-                    try:
-                        if base64.b64decode(image, validate=True):
-                            image = prefix + image
-                            break
-                    except (binascii.Error, ValueError):
-                        continue
-
+            # 如果不带 MIME 类型前缀，直接使用 base64 解码
             return base64.b64decode(image)
         except (binascii.Error, ValueError):
             raise ValueError("无效的 base64 字符串")
@@ -49,19 +40,29 @@ def decode_image(image: Union[FileStorage, str, None]) -> bytes:
         raise ValueError("无效的图像输入")
 
 # 从 URL 获取图像数据
-def fetch_image_from_url(url: str) -> bytes:
+def fetch_image_from_url(url: str, headers: Optional[Dict[str, str]] = None, params: Optional[Dict[str, str]] = None) -> bytes:
     try:
-        response = requests.get(url)
+        response = requests.get(url, headers=headers, params=params)
         response.raise_for_status()  # 检查 HTTP 错误
         return response.content
     except Exception as e:
-        raise ValueError("无法从 URL 获取图像")
+        raise ValueError(f"无法从 URL 获取图像: {str(e)}")
 
 @app.route('/ocr', methods=['POST'])
 def ocr_endpoint():
     data = request.form.get('data', '')
     file = request.files.get('file', None)
     url = request.form.get('url', '')
+    
+    # 自定义请求头和表单参数
+    headers = request.form.get('headers', None)
+    params = request.form.get('params', None)
+
+    # 将 headers 和 params 转换为字典
+    if headers:
+        headers = dict(item.split(':') for item in headers.split(';'))
+    if params:
+        params = dict(item.split('=') for item in params.split('&'))
 
     # 处理 base64 图像数据
     if data:
@@ -90,7 +91,7 @@ def ocr_endpoint():
     # 处理图片 URL
     if url:
         try:
-            image_data = fetch_image_from_url(url)
+            image_data = fetch_image_from_url(url, headers=headers, params=params)
             res = ocr.classification(image_data)
             if not res:
                 return jsonify({'code': -404, 'msg': '识别失败'})
