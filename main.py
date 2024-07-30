@@ -1,3 +1,13 @@
+"""
+请求示例：
+POST 请求数据格式：
+data：base64 编码图像数据（可选）
+file：上传的图像文件（可选）
+url：图像 URL（可选）
+headers：自定义请求头（可选），格式为 "Key1:Value1;Key2:Value2"
+params：自定义表单参数（可选），格式为 "param1=value1&param2=value2"
+"""
+
 import base64
 import ddddocr
 import binascii
@@ -39,12 +49,16 @@ def decode_image(image: Union[FileStorage, str, None]) -> bytes:
     else:
         raise ValueError("无效的图像输入")
 
-# 从 URL 获取图像数据
-def fetch_image_from_url(url: str, headers: Optional[Dict[str, str]] = None, params: Optional[Dict[str, str]] = None) -> bytes:
+# 从 URL 获取图像数据及 Cookie
+def fetch_image_from_url(url: str, headers: Optional[Dict[str, str]] = None, params: Optional[Dict[str, str]] = None) -> (bytes, Dict[str, str]):
     try:
         response = requests.get(url, headers=headers, params=params)
         response.raise_for_status()  # 检查 HTTP 错误
-        return response.content
+
+        # 提取 Cookie
+        cookies = response.cookies.get_dict()
+        
+        return response.content, cookies
     except Exception as e:
         raise ValueError(f"无法从 URL 获取图像: {str(e)}")
 
@@ -91,11 +105,21 @@ def ocr_endpoint():
     # 处理图片 URL
     if url:
         try:
-            image_data = fetch_image_from_url(url, headers=headers, params=params)
+            image_data, cookies = fetch_image_from_url(url, headers=headers, params=params)
+            format = guess_image_format(image_data)
+            if format not in ALLOWED_EXTENSIONS:
+                return jsonify({'code': -202, 'msg': '不支持的图像格式'})
             res = ocr.classification(image_data)
             if not res:
                 return jsonify({'code': -404, 'msg': '识别失败'})
-            return jsonify({'code': 200, 'data': str(res), 'msg': '识别成功'})
+            
+            # 创建响应对象，并设置 Cookie 头
+            response = jsonify({'code': 200, 'data': str(res), 'msg': '识别成功'})
+            for key, value in cookies.items():
+                response.set_cookie(key, value)
+            
+            return response
+
         except ValueError as e:
             return jsonify({'code': -400, 'msg': str(e)})
 
