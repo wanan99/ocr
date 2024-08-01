@@ -1,4 +1,4 @@
+aiohttp==3.9.3
 ddddocr==1.5.5
-Flask==2.3.2
-Requests==2.31.0
-Werkzeug==3.0.1
+fastapi==0.111.1
+uvicorn==0.30.3
