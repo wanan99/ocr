@@ -31,7 +31,11 @@ def decode_image(image: Union[UploadFile, str, None]) -> bytes:
                 return base64.b64decode(image.split(',')[1])
             except (binascii.Error, ValueError):
                 raise HTTPException(status_code=400, detail="无效的 base64 字符串")
-        raise HTTPException(status_code=400, detail="无效的 base64 数据")
+        else:
+            try:
+                return base64.b64decode(image)
+            except (binascii.Error, ValueError):
+                raise HTTPException(status_code=400, detail="无效的 base64 字符串")
     else:
         raise HTTPException(status_code=400, detail="无效的图像输入")
 
@@ -41,14 +45,12 @@ async def fetch_image_from_url(url: str, headers: Optional[Dict[str, str]] = Non
         async with aiohttp.ClientSession() as session:
             async with session.get(url, headers=headers, params=params, timeout=10) as response:
                 response.raise_for_status()
-                # 提取 Cookie
                 cookies = {key: value.value for key, value in response.cookies.items()}
                 cookies_str = '; '.join(f'{key}={value}' for key, value in cookies.items())
                 return {'image': await response.read(), 'cookies': cookies_str}
     except aiohttp.ClientError as e:
         raise HTTPException(status_code=400, detail=f"从 URL 获取图像时出错: {str(e)}")
         
-
 @app.post('/ocr')
 async def ocr_endpoint(
     data: Optional[str] = Form(None),        # Base64 编码的图像数据
